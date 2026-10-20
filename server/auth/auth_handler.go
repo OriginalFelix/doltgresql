@@ -111,6 +111,8 @@ func (h *AuthorizationHandler) HandleAuth(ctx *sql.Context, aqs sql.Authorizatio
 	defer globalLock.RUnlock()
 
 	checkSchemaForUsage := false
+	// anyPrivilege states that a single one of the privileges is sufficient, rather than requiring all of them.
+	anyPrivilege := false
 	var privileges []Privilege
 	switch auth.AuthType {
 	case AuthType_CREATE:
@@ -142,6 +144,15 @@ func (h *AuthorizationHandler) HandleAuth(ctx *sql.Context, aqs sql.Authorizatio
 		privileges = []Privilege{Privilege_EXECUTE}
 	case AuthType_INSERT:
 		privileges = []Privilege{Privilege_INSERT}
+	case AuthType_LOCK_ACCESS_SHARE:
+		anyPrivilege = true
+		privileges = []Privilege{Privilege_SELECT, Privilege_INSERT, Privilege_UPDATE, Privilege_DELETE, Privilege_TRUNCATE}
+	case AuthType_LOCK_ROW_EXCLUSIVE:
+		anyPrivilege = true
+		privileges = []Privilege{Privilege_INSERT, Privilege_UPDATE, Privilege_DELETE, Privilege_TRUNCATE}
+	case AuthType_LOCK:
+		anyPrivilege = true
+		privileges = []Privilege{Privilege_UPDATE, Privilege_DELETE, Privilege_TRUNCATE}
 	case AuthType_SELECT:
 		privileges = []Privilege{Privilege_SELECT}
 	case AuthType_TRUNCATE:
@@ -222,7 +233,11 @@ func (h *AuthorizationHandler) HandleAuth(ctx *sql.Context, aqs sql.Authorizatio
 				// Leave missing relations to the normal table resolver.
 				return nil
 			}
-			err = checkPrivilegeOnTable(state, relationKind, schemaName, auth.TargetNames[i+2], privileges)
+			if anyPrivilege {
+				err = checkAnyPrivilegeOnTable(state, relationKind, schemaName, auth.TargetNames[i+2], privileges)
+			} else {
+				err = checkPrivilegeOnTable(state, relationKind, schemaName, auth.TargetNames[i+2], privileges)
+			}
 			if err != nil {
 				return err
 			}
@@ -455,6 +470,16 @@ func checkPrivilegeOnTable(state AuthorizationQueryState, relationKind, schemaNa
 		}
 	}
 	return nil
+}
+
+// checkAnyPrivilegeOnTable returns an error unless the role holds at least one of the privileges on the table.
+func checkAnyPrivilegeOnTable(state AuthorizationQueryState, relationKind, schemaName, tableName string, privileges []Privilege) error {
+	for _, privilege := range privileges {
+		if checkPrivilegeOnTable(state, relationKind, schemaName, tableName, []Privilege{privilege}) == nil {
+			return nil
+		}
+	}
+	return pgerror.Newf(pgcode.InsufficientPrivilege, "permission denied for %s %s", relationKind, tableName)
 }
 
 // restrictedCatalogTables are the pg_catalog relations that Postgres does not grant SELECT on to PUBLIC.

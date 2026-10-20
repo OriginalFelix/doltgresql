@@ -172,6 +172,7 @@ var KeywordsCategories = map[string]string{
 	"except":                       "R",
 	"exclude":                      "U",
 	"excluding":                    "U",
+	"exclusive":                    "U",
 	"execute":                      "U",
 	"execution":                    "U",
 	"exists":                       "C",
@@ -321,6 +322,7 @@ var KeywordsCategories = map[string]string{
 	"locale_provider":              "U",
 	"localtime":                    "R",
 	"localtimestamp":               "R",
+	"lock":                         "U",
 	"locked":                       "U",
 	"logged":                       "U",
 	"login":                        "U",
@@ -340,6 +342,7 @@ var KeywordsCategories = map[string]string{
 	"minute":                       "U",
 	"minvalue":                     "U",
 	"minvfunc":                     "U",
+	"mode":                         "U",
 	"modifyclustersetting":         "U",
 	"modulus":                      "U",
 	"month":                        "U",
@@ -857,6 +860,7 @@ var KeywordNames = []string{
 	"except",
 	"exclude",
 	"excluding",
+	"exclusive",
 	"execute",
 	"execution",
 	"exists",
@@ -1006,6 +1010,7 @@ var KeywordNames = []string{
 	"locale_provider",
 	"localtime",
 	"localtimestamp",
+	"lock",
 	"locked",
 	"logged",
 	"login",
@@ -1025,6 +1030,7 @@ var KeywordNames = []string{
 	"minute",
 	"minvalue",
 	"minvfunc",
+	"mode",
 	"modifyclustersetting",
 	"modulus",
 	"month",
@@ -1716,6 +1722,8 @@ func GetKeywordID(k string) int32 {
 		return EXCLUDE
 	case "excluding":
 		return EXCLUDING
+	case "exclusive":
+		return EXCLUSIVE
 	case "execute":
 		return EXECUTE
 	case "execution":
@@ -2014,6 +2022,8 @@ func GetKeywordID(k string) int32 {
 		return LOCALTIME
 	case "localtimestamp":
 		return LOCALTIMESTAMP
+	case "lock":
+		return LOCK
 	case "locked":
 		return LOCKED
 	case "logged":
@@ -2052,6 +2062,8 @@ func GetKeywordID(k string) int32 {
 		return MINVALUE
 	case "minvfunc":
 		return MINVFUNC
+	case "mode":
+		return MODE
 	case "modifyclustersetting":
 		return MODIFYCLUSTERSETTING
 	case "modulus":

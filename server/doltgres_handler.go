@@ -44,6 +44,7 @@ import (
 
 	"github.com/dolthub/doltgresql/core"
 	"github.com/dolthub/doltgresql/core/id"
+	"github.com/dolthub/doltgresql/core/tablelock"
 	"github.com/dolthub/doltgresql/core/typecollection"
 	"github.com/dolthub/doltgresql/server/ast"
 	"github.com/dolthub/doltgresql/server/auth"
@@ -320,6 +321,8 @@ func (h *DoltgresHandler) ConnectionClosed(c *mysql.Conn) {
 	defer h.e.CloseSession(c.ConnectionID)
 
 	h.maybeReleaseAllLocks(c)
+	// Table locks are normally released when their transaction ends, which may not happen for a dropped connection.
+	tablelock.Global.ReleaseAll(c.ConnectionID)
 
 	logrus.WithField(sql.ConnectionIdLogField, c.ConnectionID).Infof("ConnectionClosed")
 }

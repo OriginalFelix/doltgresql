@@ -2066,8 +2066,9 @@ func TestPgLocks(t *testing.T) {
 			Name: "pg_locks",
 			Assertions: []ScriptTestAssertion{
 				{
-					Query:    `SELECT * FROM "pg_catalog"."pg_locks";`,
-					Expected: []sql.Row{},
+					// Like in Postgres, the query sees the lock that it holds on pg_locks itself.
+					Query:    `SELECT locktype, mode, granted FROM "pg_catalog"."pg_locks";`,
+					Expected: []sql.Row{{"relation", "AccessShareLock", "t"}},
 				},
 				{ // Different cases and quoted, so it fails
 					Query:       `SELECT * FROM "PG_catalog"."pg_locks";`,
@@ -2079,7 +2080,7 @@ func TestPgLocks(t *testing.T) {
 				},
 				{ // Different cases but non-quoted, so it works
 					Query:    "SELECT objid FROM PG_catalog.pg_LOCKS ORDER BY objid;",
-					Expected: []sql.Row{},
+					Expected: []sql.Row{{nil}},
 				},
 			},
 		},

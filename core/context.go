@@ -208,6 +208,27 @@ func (cv *contextValues) DoltgresTransactionEnd() {
 	}
 }
 
+// ClearCachedRootObjects discards the root objects (such as sequences and types) that were loaded from the session's
+// previous working root, so that they are reloaded from the current one instead of being written back over it.
+func ClearCachedRootObjects(ctx *sql.Context) error {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return err
+	}
+	cv.colls = nil
+	cv.pgCatalogCache = nil
+	return nil
+}
+
+// HasSavepoints returns whether the current transaction has any savepoints.
+func HasSavepoints(ctx *sql.Context) (bool, error) {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return false, err
+	}
+	return len(cv.settingsSavepoints) > 0, nil
+}
+
 // AddTransactionEndCallback registers work to run when the current transaction
 // commits or rolls back.
 func AddTransactionEndCallback(ctx *sql.Context, callback func()) error {

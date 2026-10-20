@@ -489,6 +489,9 @@ func (u *sqlSymUnion) idxElems() tree.IndexElemList {
 func (u *sqlSymUnion) dropBehavior() tree.DropBehavior {
     return u.val.(tree.DropBehavior)
 }
+func (u *sqlSymUnion) lockTableMode() tree.LockTableMode {
+    return u.val.(tree.LockTableMode)
+}
 func (u *sqlSymUnion) validationBehavior() tree.ValidationBehavior {
     return u.val.(tree.ValidationBehavior)
 }
@@ -820,7 +823,7 @@ func (u *sqlSymUnion) vacuumTableAndColsList() tree.VacuumTableAndColsList {
 %token <str> DETACH DETACHED DICTIONARY DISABLE DISABLE_PAGE_SKIPPING DISCARD DISTINCT DO DOCUMENT DOMAIN DOUBLE DROP
 
 %token <str> EACH ELEMENT ELSE EMPTY ENABLE ENCODING ENCRYPTION_PASSPHRASE ENCRYPTED END ENUM ENUMS ESCAPE EVENT
-%token <str> EXCEPT EXCLUDE EXCLUDING EXISTS EXECUTE EXECUTION EXPERIMENTAL
+%token <str> EXCEPT EXCLUDE EXCLUDING EXCLUSIVE EXISTS EXECUTE EXECUTION EXPERIMENTAL
 %token <str> EXPERIMENTAL_FINGERPRINTS EXPERIMENTAL_REPLICA
 %token <str> EXPERIMENTAL_AUDIT EXPIRATION EXPLAIN EXPORT EXPRESSION
 %token <str> EXTENDED EXTENSION EXTERNAL EXTRACT EXTRACT_DURATION
@@ -849,10 +852,10 @@ func (u *sqlSymUnion) vacuumTableAndColsList() tree.VacuumTableAndColsList {
 %token <str> LANGUAGE LARGE LAST LATERAL LATEST LC_CTYPE LC_COLLATE
 %token <str> LEADING LEAKPROOF LEASE LEAST LEFT LEFTARG LESS LEVEL LIKE LIMIT
 %token <str> LINESTRING LINESTRINGM LINESTRINGZ LINESTRINGZM LIST
-%token <str> LOCAL LOCALE LOCALE_PROVIDER LOCALTIME LOCALTIMESTAMP LOCKED LOGGED LOGIN LOOKUP LOW LSHIFT
+%token <str> LOCAL LOCALE LOCALE_PROVIDER LOCALTIME LOCALTIMESTAMP LOCK LOCKED LOGGED LOGIN LOOKUP LOW LSHIFT
 
 %token <str> MAIN MATCH MATERIALIZED MAXVALUE MERGE MERGES METHOD MFINALFUNC MFINALFUNC_EXTRA MFINALFUNC_MODIFY
-%token <str> MINITCOND MINUTE MINVALUE MINVFUNC MODIFYCLUSTERSETTING MODULUS MONTH MOVE MSFUNC MSPACE MSSPACE MSTYPE
+%token <str> MINITCOND MINUTE MINVALUE MINVFUNC MODE MODIFYCLUSTERSETTING MODULUS MONTH MOVE MSFUNC MSPACE MSSPACE MSTYPE
 %token <str> MULTILINESTRING MULTILINESTRINGM MULTILINESTRINGZ MULTILINESTRINGZM MULTIPOINT MULTIPOINTM
 %token <str> MULTIPOINTZ MULTIPOINTZM MULTIPOLYGON MULTIPOLYGONM MULTIPOLYGONZ MULTIPOLYGONZM MULTIRANGE_TYPE_NAME
 
@@ -1145,6 +1148,8 @@ func (u *sqlSymUnion) vacuumTableAndColsList() tree.VacuumTableAndColsList {
 
 %type <tree.Statement> transaction_stmt
 %type <tree.Statement> truncate_stmt
+%type <tree.Statement> lock_stmt
+%type <tree.LockTableMode> opt_lock lock_type
 %type <tree.Statement> update_stmt
 %type <tree.Statement> upsert_stmt
 %type <tree.Statement> use_stmt
@@ -1629,6 +1634,7 @@ non_transaction_stmt:
 | close_cursor_stmt   // EXTEND WITH HELP: CLOSE
 | declare_cursor_stmt // EXTEND WITH HELP: DECLARE
 | fetch_cursor_stmt   // EXTEND WITH HELP: FETCH
+| lock_stmt
 | move_cursor_stmt    // EXTEND WITH HELP: MOVE
 | reindex_stmt
 | vacuum_stmt
@@ -9271,6 +9277,33 @@ seq_restart:
 // %Category: DML
 // %Text: TRUNCATE [TABLE] <tablename> [, ...] [CASCADE | RESTRICT]
 // %SeeAlso: WEBDOCS/truncate.html
+// LOCK [ TABLE ] [ ONLY ] name [ * ] [, ...] [ IN lockmode MODE ] [ NOWAIT ]
+lock_stmt:
+  LOCK opt_table relation_expr_list opt_lock opt_nowait
+  {
+    $$.val = &tree.LockTable{Tables: $3.tableNames(), Mode: $4.lockTableMode(), NoWait: $5.bool()}
+  }
+
+opt_lock:
+  IN lock_type MODE
+  {
+    $$.val = $2.lockTableMode()
+  }
+| /* EMPTY */
+  {
+    $$.val = tree.LockModeAccessExclusive
+  }
+
+lock_type:
+  ACCESS SHARE             { $$.val = tree.LockModeAccessShare }
+| ROW SHARE                { $$.val = tree.LockModeRowShare }
+| ROW EXCLUSIVE            { $$.val = tree.LockModeRowExclusive }
+| SHARE UPDATE EXCLUSIVE   { $$.val = tree.LockModeShareUpdateExclusive }
+| SHARE                    { $$.val = tree.LockModeShare }
+| SHARE ROW EXCLUSIVE      { $$.val = tree.LockModeShareRowExclusive }
+| EXCLUSIVE                { $$.val = tree.LockModeExclusive }
+| ACCESS EXCLUSIVE         { $$.val = tree.LockModeAccessExclusive }
+
 truncate_stmt:
   TRUNCATE opt_table relation_expr_list opt_drop_behavior
   {
@@ -16089,6 +16122,7 @@ unreserved_keyword:
 | EVENT
 | EXCLUDE
 | EXCLUDING
+| EXCLUSIVE
 | EXECUTE
 | EXECUTION
 | EXPERIMENTAL
@@ -16192,6 +16226,7 @@ unreserved_keyword:
 | LOCAL
 | LOCALE
 | LOCALE_PROVIDER
+| LOCK
 | LOCKED
 | LOGGED
 | LOGIN
@@ -16211,6 +16246,7 @@ unreserved_keyword:
 | MINUTE
 | MINVALUE
 | MINVFUNC
+| MODE
 | MODIFYCLUSTERSETTING
 | MODULUS
 | MONTH
