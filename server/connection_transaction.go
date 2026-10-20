@@ -28,7 +28,10 @@ import (
 
 	"github.com/dolthub/doltgresql/core"
 	"github.com/dolthub/doltgresql/postgres/parser/pgcode"
+	"github.com/dolthub/doltgresql/postgres/parser/sem/tree"
+	"github.com/dolthub/doltgresql/server/ast"
 	"github.com/dolthub/doltgresql/server/node"
+	"github.com/dolthub/doltgresql/server/settings"
 )
 
 // transactionState is the transaction block state reported by ReadyForQuery.
@@ -81,7 +84,13 @@ func (h *ConnectionHandler) handleTransactionStatement(query ConvertedQuery) (bo
 			return true, h.send(makeCommandComplete(query.StatementTag, 0))
 		default:
 			h.state.txState = explicitTransactionState
-			return false, nil
+			if err := h.doltgresHandler.ComQuery(context.Background(), h.mysqlConn, query.String, query.AST, func(*sql.Context, *Result) error { return nil }); err != nil {
+				return true, err
+			}
+			if err := h.applyTransactionModes(query.TransactionModes); err != nil {
+				return true, err
+			}
+			return true, h.send(makeCommandComplete(query.StatementTag, 0))
 		}
 	case *sqlparser.Commit:
 		if h.state.txState == failedTransactionState {
@@ -214,6 +223,25 @@ func (h *ConnectionHandler) restoredAutoCommitWithoutTransaction() bool {
 	}
 	ctx.SetIgnoreAutoCommit(false)
 	return true
+}
+
+// applyTransactionModes records the modes given to BEGIN as the characteristics of the transaction that it started,
+// overriding the session defaults that the transaction started with.
+func (h *ConnectionHandler) applyTransactionModes(modes *tree.TransactionModes) error {
+	transactionSettings, err := ast.TransactionModeSettings(modes, false)
+	if err != nil || len(transactionSettings) == 0 {
+		return err
+	}
+	ctx, err := h.doltgresHandler.NewContext(context.Background(), h.mysqlConn, "")
+	if err != nil {
+		return err
+	}
+	for _, setting := range transactionSettings {
+		if err = settings.Set(ctx, setting.Name, setting.Value, false, true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // runEngineTransactionControl executes an internal transaction-control statement without client responses.

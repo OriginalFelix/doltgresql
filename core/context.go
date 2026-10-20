@@ -62,6 +62,9 @@ type contextValues struct {
 	transactionEndCallbacks   []func()
 	sessionAdvisoryLockCounts map[string]int
 	cursors                   map[string]*Cursor
+
+	// statementTag is the command tag of the statement that the client is currently running.
+	statementTag string
 }
 
 // InitializeIdentityOnSession installs the authenticated principal once on a
@@ -148,6 +151,7 @@ func (cv *contextValues) DoltgresTransactionStarted() {
 		setting.journal.Begin()
 	}
 	cv.settingsSavepoints = nil
+	cv.applyTransactionDefaults()
 }
 func (cv *contextValues) DoltgresTransactionCommitted() {
 	cv.identity.Commit()
@@ -206,6 +210,26 @@ func (cv *contextValues) DoltgresTransactionEnd() {
 	for _, callback := range callbacks {
 		callback()
 	}
+}
+
+// SetStatementTag records the command tag of the statement that the client is about to run, such as "CREATE TABLE".
+func SetStatementTag(ctx *sql.Context, tag string) error {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return err
+	}
+	cv.statementTag = tag
+	return nil
+}
+
+// StatementTag returns the command tag of the statement that the client is currently running, or an empty string if
+// it is not known.
+func StatementTag(ctx *sql.Context) string {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return ""
+	}
+	return cv.statementTag
 }
 
 // AddTransactionEndCallback registers work to run when the current transaction

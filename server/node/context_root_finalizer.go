@@ -62,6 +62,9 @@ func (rf *ContextRootFinalizer) Resolved() bool {
 
 // BuildRowIter implements the interface sql.ExecBuilderNode.
 func (rf *ContextRootFinalizer) BuildRowIter(ctx *sql.Context, b sql.NodeExecBuilder, r sql.Row) (sql.RowIter, error) {
+	if err := checkReadOnlyTransaction(ctx, rf.child); err != nil {
+		return nil, err
+	}
 	childIter, err := b.Build(ctx, rf.child, r)
 	if err != nil {
 		return nil, err

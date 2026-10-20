@@ -1,4 +1,4 @@
-// Copyright 2023 Dolthub, Inc.
+// Copyright 2025 Dolthub, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,19 @@ import (
 	vitess "github.com/dolthub/vitess/go/vt/sqlparser"
 
 	"github.com/dolthub/doltgresql/postgres/parser/sem/tree"
+	pgnodes "github.com/dolthub/doltgresql/server/node"
 )
 
-// nodeSetTransaction handles *tree.SetTransaction nodes.
+// nodeSetTransaction handles *tree.SetTransaction nodes, which set the characteristics of the current transaction.
 func nodeSetTransaction(ctx *Context, node *tree.SetTransaction) (vitess.Statement, error) {
 	if node == nil {
 		return nil, nil
 	}
-
-	return NotYetSupportedError("SET TRANSACTION is not yet supported")
+	settings, err := TransactionModeSettings(&node.Modes, false)
+	if err != nil {
+		return nil, err
+	}
+	return vitess.InjectedStatement{
+		Statement: &pgnodes.SetTransactionCharacteristics{Session: false, Settings: settings},
+	}, nil
 }
