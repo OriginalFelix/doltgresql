@@ -212,6 +212,27 @@ func (cv *contextValues) DoltgresTransactionEnd() {
 	}
 }
 
+// ClearCachedRootObjects discards the root objects (such as sequences and types) that were loaded from the session's
+// previous working root, so that they are reloaded from the current one instead of being written back over it.
+func ClearCachedRootObjects(ctx *sql.Context) error {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return err
+	}
+	cv.colls = nil
+	cv.pgCatalogCache = nil
+	return nil
+}
+
+// HasSavepoints returns whether the current transaction has any savepoints.
+func HasSavepoints(ctx *sql.Context) (bool, error) {
+	cv, err := getContextValues(ctx)
+	if err != nil {
+		return false, err
+	}
+	return len(cv.settingsSavepoints) > 0, nil
+}
+
 // SetStatementTag records the command tag of the statement that the client is about to run, such as "CREATE TABLE".
 func SetStatementTag(ctx *sql.Context, tag string) error {
 	cv, err := getContextValues(ctx)

@@ -57,6 +57,11 @@ func (h *ConnectionHandler) handleQueryOutsideEngine(query ConvertedQuery, simpl
 		switch injectedStmt := stmt.Statement.(type) {
 		case node.DiscardStatement:
 			return true, true, h.discardAll(simpleQuery)
+		case *node.LockTable:
+			// Locks are held until the transaction ends, so they would be released immediately outside a block.
+			if !h.isInTransactionBlock(simpleQuery) {
+				return true, true, noActiveTransactionError(query.StatementTag)
+			}
 		case *node.SetTransactionCharacteristics:
 			if !injectedStmt.Session && !h.isInTransactionBlock(simpleQuery) {
 				// Like Postgres, this warns that the characteristics only apply to the statement's own transaction.

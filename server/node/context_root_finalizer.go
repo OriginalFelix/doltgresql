@@ -62,7 +62,12 @@ func (rf *ContextRootFinalizer) Resolved() bool {
 
 // BuildRowIter implements the interface sql.ExecBuilderNode.
 func (rf *ContextRootFinalizer) BuildRowIter(ctx *sql.Context, b sql.NodeExecBuilder, r sql.Row) (sql.RowIter, error) {
+	// A statement that may not run in a read-only transaction is rejected before it waits for any lock.
 	if err := checkReadOnlyTransaction(ctx, rf.child); err != nil {
+		return nil, err
+	}
+	// Locks must be held before any table is accessed, which may already happen while the child iterator is built.
+	if err := acquireImplicitTableLocks(ctx, rf.child); err != nil {
 		return nil, err
 	}
 	childIter, err := b.Build(ctx, rf.child, r)
