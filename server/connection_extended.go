@@ -292,6 +292,9 @@ func (h *ConnectionHandler) handleExecute(message *pgproto3.Execute) error {
 
 	rowsAffected := int32(0)
 	callback := h.spoolRowsCallback(query, &rowsAffected, true)
+	if err = h.setStatementTag(query); err != nil {
+		return err
+	}
 	err = h.doltgresHandler.ComExecuteBound(context.Background(), h.mysqlConn, query.String, portalData.BoundPlan, portalData.FormatCodes, callback)
 	if err != nil {
 		return err
