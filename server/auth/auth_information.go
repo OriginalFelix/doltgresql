@@ -36,6 +36,14 @@ const (
 	AuthType_USAGE          = "USAGE"
 )
 
+// These AuthType_ enums authorize LOCK TABLE in ACCESS SHARE mode, in ROW SHARE and ROW EXCLUSIVE mode, and in the
+// remaining modes respectively. Unlike the other auth types, any one of their privileges is sufficient.
+const (
+	AuthType_LOCK_ACCESS_SHARE  = "LOCK_ACCESS_SHARE"
+	AuthType_LOCK_ROW_EXCLUSIVE = "LOCK_ROW_EXCLUSIVE"
+	AuthType_LOCK               = "LOCK"
+)
+
 // These AuthTargetType_ enums are used as the TargetType in vitess.AuthInformation.
 const (
 	AuthTargetType_Ignore                            = "IGNORE"

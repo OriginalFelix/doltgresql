@@ -204,6 +204,8 @@ func ConvertWithOptions(postgresStmt parser.Statement, options ConvertOptions) (
 		return nodeImport(ctx, stmt)
 	case *tree.Insert:
 		return nodeInsert(ctx, stmt)
+	case *tree.LockTable:
+		return nodeLockTable(ctx, stmt)
 	case *tree.ParenSelect:
 		return nodeParenSelect(ctx, stmt)
 	case *tree.Prepare:

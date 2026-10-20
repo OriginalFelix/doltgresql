@@ -16,9 +16,12 @@ package pgcatalog
 
 import (
 	"io"
+	"strings"
 
 	"github.com/dolthub/go-mysql-server/sql"
 
+	"github.com/dolthub/doltgresql/core/id"
+	"github.com/dolthub/doltgresql/core/tablelock"
 	"github.com/dolthub/doltgresql/server/tables"
 	pgtypes "github.com/dolthub/doltgresql/server/types"
 )
@@ -43,9 +46,8 @@ func (p PgLocksHandler) Name() string {
 
 // RowIter implements the interface tables.Handler.
 func (p PgLocksHandler) RowIter(ctx *sql.Context, partition sql.Partition) (sql.RowIter, error) {
-	// pg_locks is currently empty, since lock introspection is not exposed by the engine.
-	// TODO: fill this in when lock information is available
-	return emptyRowIter()
+	// Only table-level locks are reported, as the engine does not expose any other kind of lock.
+	return &pgLocksRowIter{locks: tablelock.Global.Locks()}, nil
 }
 
 // PkSchema implements the interface tables.Handler.
@@ -78,13 +80,38 @@ var pgLocksSchema = sql.Schema{
 
 // pgLocksRowIter is the sql.RowIter for the pg_locks table.
 type pgLocksRowIter struct {
+	locks []tablelock.Lock
+	idx   int
 }
 
 var _ sql.RowIter = (*pgLocksRowIter)(nil)
 
 // Next implements the interface sql.RowIter.
 func (iter *pgLocksRowIter) Next(ctx *sql.Context) (sql.Row, error) {
-	return nil, io.EOF
+	if iter.idx >= len(iter.locks) {
+		return nil, io.EOF
+	}
+	lock := iter.locks[iter.idx]
+	iter.idx++
+	databaseName, _, _ := strings.Cut(lock.Key.Database, "/")
+	return sql.Row{
+		"relation",                          // locktype
+		id.NewDatabase(databaseName).AsId(), // database
+		id.NewTable(lock.Key.Schema, lock.Key.Table).AsId(), // relation
+		nil,                 // page
+		nil,                 // tuple
+		nil,                 // virtualxid
+		nil,                 // transactionid
+		nil,                 // classid
+		nil,                 // objid
+		nil,                 // objsubid
+		nil,                 // virtualtransaction
+		int32(lock.Session), // pid
+		lock.Mode.String(),  // mode
+		lock.Granted,        // granted
+		false,               // fastpath
+		nil,                 // waitstart
+	}, nil
 }
 
 // Close implements the interface sql.RowIter.
