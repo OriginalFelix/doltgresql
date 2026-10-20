@@ -28,19 +28,11 @@ func nodeBeginTransaction(ctx *Context, node *tree.BeginTransaction) (*vitess.Be
 		return nil, nil
 	}
 
-	// TODO: When Dolt supports additional transaction isolation levels, we can plug them
-	//       in here based on what the user has set in node.Modes.Isolation
-	//       For now, we follow Dolt's lead and support the syntax for isolation levels, but
-	//       always use REPEATABLE READ semantics.
-
-	if node.Modes.UserPriority != tree.UnspecifiedUserPriority {
-		return nil, errors.Errorf("user priority is not yet supported")
-	}
-	if node.Modes.AsOf.Expr != nil {
-		return nil, errors.Errorf("AS OF is not yet supported")
-	}
-	if node.Modes.Deferrable != tree.UnspecifiedDeferrableMode {
-		return nil, errors.Errorf("deferrability is not yet supported")
+	// Dolt only implements a single isolation level, so the isolation level and deferrability are not passed to the
+	// engine. The connection handler records all modes in the transaction's parameters once the transaction has begun
+	// (see TransactionModeSettings), which is also where a read-only transaction is enforced.
+	if _, err := TransactionModeSettings(&node.Modes, false); err != nil {
+		return nil, err
 	}
 	var characteristic string
 	switch node.Modes.ReadWriteMode {

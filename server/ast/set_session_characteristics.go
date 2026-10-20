@@ -1,4 +1,4 @@
-// Copyright 2023 Dolthub, Inc.
+// Copyright 2025 Dolthub, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,17 +15,23 @@
 package ast
 
 import (
-	"github.com/cockroachdb/errors"
-
 	vitess "github.com/dolthub/vitess/go/vt/sqlparser"
 
 	"github.com/dolthub/doltgresql/postgres/parser/sem/tree"
+	pgnodes "github.com/dolthub/doltgresql/server/node"
 )
 
-// nodeSetSessionCharacteristics handles *tree.SetSessionCharacteristics nodes.
+// nodeSetSessionCharacteristics handles *tree.SetSessionCharacteristics nodes, which set the default characteristics
+// of the session's subsequent transactions.
 func nodeSetSessionCharacteristics(ctx *Context, node *tree.SetSessionCharacteristics) (vitess.Statement, error) {
 	if node == nil {
 		return nil, nil
 	}
-	return nil, errors.Errorf("SET SESSION CHARACTERISTICS is not yet supported")
+	settings, err := TransactionModeSettings(&node.Modes, true)
+	if err != nil {
+		return nil, err
+	}
+	return vitess.InjectedStatement{
+		Statement: &pgnodes.SetTransactionCharacteristics{Session: true, Settings: settings},
+	}, nil
 }

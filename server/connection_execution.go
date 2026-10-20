@@ -26,9 +26,11 @@ import (
 	"github.com/dolthub/vitess/go/vt/sqlparser"
 	"github.com/jackc/pgx/v5/pgproto3"
 
+	"github.com/dolthub/doltgresql/core"
 	"github.com/dolthub/doltgresql/postgres/parser/parser"
 	"github.com/dolthub/doltgresql/postgres/parser/pgcode"
 	"github.com/dolthub/doltgresql/postgres/parser/pgerror"
+	"github.com/dolthub/doltgresql/postgres/parser/sem/tree"
 	"github.com/dolthub/doltgresql/server/ast"
 	"github.com/dolthub/doltgresql/server/node"
 )
@@ -38,6 +40,8 @@ type ConvertedQuery struct {
 	String       string
 	AST          sqlparser.Statement
 	StatementTag string
+	// TransactionModes holds the modes of a BEGIN statement, which the engine's representation does not retain.
+	TransactionModes *tree.TransactionModes
 }
 
 // handleQueryOutsideEngine handles statements owned by the connection layer instead of the query engine.
@@ -57,6 +61,17 @@ func (h *ConnectionHandler) handleQueryOutsideEngine(query ConvertedQuery, simpl
 			// Locks are held until the transaction ends, so they would be released immediately outside a block.
 			if !h.isInTransactionBlock(simpleQuery) {
 				return true, true, noActiveTransactionError(query.StatementTag)
+			}
+		case *node.SetTransactionCharacteristics:
+			if !injectedStmt.Session && !h.isInTransactionBlock(simpleQuery) {
+				// Like Postgres, this warns that the characteristics only apply to the statement's own transaction.
+				if err := h.send(&pgproto3.NoticeResponse{
+					Severity: string(ErrorResponseSeverity_Warning),
+					Code:     pgcode.NoActiveSQLTransaction.String(),
+					Message:  "SET TRANSACTION can only be used in transaction blocks",
+				}); err != nil {
+					return true, true, err
+				}
 			}
 		case *node.SetConstraints:
 			if err := h.warnOutsideTransactionBlock(query, simpleQuery); err != nil {
@@ -80,6 +95,9 @@ func (h *ConnectionHandler) handleQueryOutsideEngine(query ConvertedQuery, simpl
 func (h *ConnectionHandler) query(query ConvertedQuery) error {
 	rowsAffected := int32(0)
 	callback := h.spoolRowsCallback(query, &rowsAffected, false)
+	if err := h.setStatementTag(query); err != nil {
+		return err
+	}
 	err := h.doltgresHandler.ComQuery(context.Background(), h.mysqlConn, query.String, query.AST, callback)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "syntax error at position") {
@@ -88,6 +106,15 @@ func (h *ConnectionHandler) query(query ConvertedQuery) error {
 		return err
 	}
 	return h.send(makeCommandComplete(query.StatementTag, rowsAffected))
+}
+
+// setStatementTag records the command tag of the query that is about to run, which some errors refer to.
+func (h *ConnectionHandler) setStatementTag(query ConvertedQuery) error {
+	ctx, err := h.doltgresHandler.NewContext(context.Background(), h.mysqlConn, "")
+	if err != nil {
+		return err
+	}
+	return core.SetStatementTag(ctx, query.StatementTag)
 }
 
 // isInTransactionBlock reports whether a transaction block is active as Postgres defines one: an explicit block opened by
@@ -208,6 +235,9 @@ func (h *ConnectionHandler) convertQuery(query string) ([]ConvertedQuery, error)
 			converted[i] = ConvertedQuery{String: s[i].AST.String(), StatementTag: stmtTag}
 		} else {
 			converted[i] = ConvertedQuery{String: query, AST: vitessAST, StatementTag: stmtTag}
+		}
+		if begin, ok := s[i].AST.(*tree.BeginTransaction); ok {
+			converted[i].TransactionModes = &begin.Modes
 		}
 	}
 	return converted, nil

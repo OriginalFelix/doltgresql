@@ -153,6 +153,39 @@ func setSetting(ctx *sql.Context, name string, value any, local, postgres bool) 
 	return nil
 }
 
+// transactionCharacteristics maps the parameters holding the characteristics of the current transaction to the
+// parameters holding their defaults.
+var transactionCharacteristics = [...][2]string{
+	{"transaction_isolation", "default_transaction_isolation"},
+	{"transaction_read_only", "default_transaction_read_only"},
+	{"transaction_deferrable", "default_transaction_deferrable"},
+}
+
+// applyTransactionDefaults initializes the characteristics of a transaction that just began from the session's
+// defaults, as set by SET SESSION CHARACTERISTICS or the default_transaction_* parameters. They are set locally, so
+// they revert once the transaction ends. Lifecycle callbacks cannot return errors, so any error is reported at the
+// next access to the session payload.
+func (cv *contextValues) applyTransactionDefaults() {
+	if cv.session == nil {
+		return
+	}
+	ctx := sql.NewContext(context.Background(), sql.WithSession(cv.session))
+	for _, names := range transactionCharacteristics {
+		defaultValue, err := cv.session.GetSessionVariable(ctx, names[1])
+		if err != nil {
+			continue
+		}
+		currentValue, err := cv.session.GetSessionVariable(ctx, names[0])
+		if err == nil && currentValue == defaultValue {
+			continue
+		}
+		if err = setSetting(ctx, names[0], defaultValue, true, true); err != nil {
+			cv.settingsRestoreErr = err
+			return
+		}
+	}
+}
+
 // restoreSettings projects restored built-in values back into the session.
 // Lifecycle callbacks cannot return errors, so retain any restoration error
 // and report it at the next access to the session payload.

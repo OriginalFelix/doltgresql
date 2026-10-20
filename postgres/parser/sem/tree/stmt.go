@@ -1013,7 +1013,7 @@ func (n *SetRole) StatementTag() string {
 func (*SetTransaction) StatementType() StatementType { return Ack }
 
 // StatementTag returns a short string identifying the type of statement.
-func (*SetTransaction) StatementTag() string { return "SET TRANSACTION" }
+func (*SetTransaction) StatementTag() string { return "SET" }
 
 // StatementType implements the Statement interface.
 func (*SetSessionAuthorization) StatementType() StatementType { return Ack }

@@ -8070,6 +8070,9 @@ var setStmts = []ScriptTest{
 				Expected: []sql.Row{{int8(0)}},
 			},
 			{
+				Query: "BEGIN",
+			},
+			{
 				Query:    "SET transaction_deferrable TO 'on'",
 				Expected: []sql.Row{},
 			},
@@ -8086,6 +8089,23 @@ var setStmts = []ScriptTest{
 				Expected: []sql.Row{{int8(0)}},
 			},
 			{
+				Query:    "SET transaction_deferrable TO 'on'",
+				Expected: []sql.Row{},
+			},
+			{
+				Query: "COMMIT",
+			},
+			{
+				// Like in Postgres, every transaction starts with the default characteristics, so the value does not
+				// outlive the transaction it was set in.
+				Query:    "SHOW transaction_deferrable",
+				Expected: []sql.Row{{int8(0)}},
+			},
+			{
+				Query:    "SET transaction_deferrable TO 'on'",
+				Expected: []sql.Row{},
+			},
+			{
 				Query:    "SELECT current_setting('transaction_deferrable')",
 				Expected: []sql.Row{{"off"}},
 			},
@@ -8098,6 +8118,9 @@ var setStmts = []ScriptTest{
 			{
 				Query:    "SHOW transaction_isolation",
 				Expected: []sql.Row{{"read committed"}},
+			},
+			{
+				Query: "BEGIN",
 			},
 			{
 				Query:    "SET transaction_isolation TO 'serializable'",
@@ -8116,6 +8139,23 @@ var setStmts = []ScriptTest{
 				Expected: []sql.Row{{"read committed"}},
 			},
 			{
+				Query:    "SET transaction_isolation TO 'serializable'",
+				Expected: []sql.Row{},
+			},
+			{
+				Query: "COMMIT",
+			},
+			{
+				// Like in Postgres, every transaction starts with the default characteristics, so the value does not
+				// outlive the transaction it was set in.
+				Query:    "SHOW transaction_isolation",
+				Expected: []sql.Row{{"read committed"}},
+			},
+			{
+				Query:    "SET transaction_isolation TO 'serializable'",
+				Expected: []sql.Row{},
+			},
+			{
 				Query:    "SELECT current_setting('transaction_isolation')",
 				Expected: []sql.Row{{"read committed"}},
 			},
@@ -8128,6 +8168,9 @@ var setStmts = []ScriptTest{
 			{
 				Query:    "SHOW transaction_read_only",
 				Expected: []sql.Row{{int8(0)}},
+			},
+			{
+				Query: "BEGIN",
 			},
 			{
 				Query:    "SET transaction_read_only TO 'on'",
@@ -8144,6 +8187,23 @@ var setStmts = []ScriptTest{
 			{
 				Query:    "SHOW transaction_read_only",
 				Expected: []sql.Row{{int8(0)}},
+			},
+			{
+				Query:    "SET transaction_read_only TO 'on'",
+				Expected: []sql.Row{},
+			},
+			{
+				Query: "COMMIT",
+			},
+			{
+				// Like in Postgres, every transaction starts with the default characteristics, so the value does not
+				// outlive the transaction it was set in.
+				Query:    "SHOW transaction_read_only",
+				Expected: []sql.Row{{int8(0)}},
+			},
+			{
+				Query:    "SET transaction_read_only TO 'on'",
+				Expected: []sql.Row{},
 			},
 			{
 				Query:    "SELECT current_setting('transaction_read_only')",
